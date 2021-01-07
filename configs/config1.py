@@ -43,7 +43,7 @@ args = {
     # scheduler
     'scheduler': {
         "method": "cosine",
-        "warmup_epochs": 10
+        "warmup_epochs": 2
     },
     'monitor_lr': True,
 
