@@ -37,69 +37,69 @@ def setup(args):
     return train_df, val_df
 
 
-    class Model(pl.LightningModule):
+class Model(pl.LightningModule):
 
-        def __init__(self, backbone, n_class, pretrained_path=None, num_train_steps=None, target_cols=None):
-            super().__init__()
-            self.num_train_steps = num_train_steps
-            self.backbone = timm.create_model(model_name=backbone,
-                                            pretrained=True if not pretrained_path else False,
-                                            num_classes=n_class)
-            if pretrained_path:
-                self.load_state_dict(torch.load(pretrained_path))
-                logging.info(f"pretrained weights loaded successfully from {pretrained_path}")
-            self.loss_fn = nn.BCEWithLogitsLoss()
-            self.target_cols = target_cols
+    def __init__(self, backbone, n_class, pretrained_path=None, num_train_steps=None, target_cols=None):
+        super().__init__()
+        self.num_train_steps = num_train_steps
+        self.backbone = timm.create_model(model_name=backbone,
+                                          pretrained=True if not pretrained_path else False,
+                                          num_classes=n_class)
+        if pretrained_path:
+            self.load_state_dict(torch.load(pretrained_path))
+            logging.info(f"pretrained weights loaded successfully from {pretrained_path}")
+        self.loss_fn = nn.BCEWithLogitsLoss()
+        self.target_cols = target_cols
 
-        def forward(self, x):
-            return self.backbone(x)
+    def forward(self, x):
+        return self.backbone(x)
 
-        def step(self, batch):
-            x, y = batch['image'], batch['label']
-            y_hat = self(x)
-            loss = self.loss_fn(y_hat, y)
-            return loss, y, y_hat
+    def step(self, batch):
+        x, y = batch['image'], batch['label']
+        y_hat = self(x)
+        loss = self.loss_fn(y_hat, y)
+        return loss, y, y_hat
 
-        def training_step(self, batch, batch_idx):
-            loss, y, y_hat = self.step(batch)
-            self.log('train_loss', loss)
-            return {'loss': loss}
+    def training_step(self, batch, batch_idx):
+        loss, y, y_hat = self.step(batch)
+        self.log('train_loss', loss)
+        return {'loss': loss}
 
-        def validation_step(self, batch, batch_idx):
-            loss, y, y_hat = self.step(batch)
-            self.log('val_loss', loss)
-            return {'loss': loss, 'y': y.detach(), 'y_hat': y_hat.detach()}
+    def validation_step(self, batch, batch_idx):
+        loss, y, y_hat = self.step(batch)
+        self.log('val_loss', loss)
+        return {'loss': loss, 'y': y.detach(), 'y_hat': y_hat.detach()}
 
-        def validation_epoch_end(self, outputs):
-            avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-            macro_auc, aucs = self.get_score(outputs)
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        macro_auc, aucs = self.get_score(outputs)
 
-            # log individual aucs
-            for i, (auc, target_col) in enumerate(zip(aucs, target_cols)):
-                self.log(f"auc_{target_col}", auc)
+        # log individual aucs
+        for i, (auc, target_col) in enumerate(zip(aucs, target_cols)):
+            self.log(f"auc_{target_col}", auc)
 
-            print(f"Epoch {self.current_epoch} | Macro AUC :{macro_auc}")
-            self.log('val_epoch_loss', avg_loss)
-            self.log('macro_auc', macro_auc)
+        print(f"Epoch {self.current_epoch} | Macro AUC :{macro_auc}")
+        self.log('val_epoch_loss', avg_loss)
+        self.log('macro_auc', macro_auc)
 
-        def get_score(self, outputs):
-            y = torch.cat([x['y'] for x in outputs])
-            y_hat = torch.cat([x['y_hat'] for x in outputs])
-            aucs = []
-            for i in range(11):
-                aucs.append(roc_auc_score(y[:, i].cpu().numpy(), y_hat[:, i].cpu().numpy()))
-            return np.mean(aucs), aucs
+    def get_score(self, outputs):
+        y = torch.cat([x['y'] for x in outputs])
+        y_hat = torch.cat([x['y_hat'] for x in outputs])
+        aucs = []
+        for i in range(11):
+            aucs.append(roc_auc_score(y[:, i].cpu().numpy(), y_hat[:, i].cpu().numpy()))
+        return np.mean(aucs), aucs
 
-        def configure_optimizers(self):
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=args.learning_rate)
-            if args.scheduler['method'] == 'cosine':
-                self.scheduler = get_cosine_schedule_with_warmup(
-                    self.optimizer,
-                    num_warmup_steps=self.num_train_steps * args.scheduler["warmup_epochs"],
-                    num_training_steps=int(self.num_train_steps * (args.num_epochs)))
-                return [self.optimizer], [{'scheduler': self.scheduler, 'interval': 'step'}]
+    def configure_optimizers(self):
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=args.learning_rate)
+        if args.scheduler['method'] == 'cosine':
+            self.scheduler = get_cosine_schedule_with_warmup(
+                self.optimizer,
+                num_warmup_steps=self.num_train_steps * args.scheduler["warmup_epochs"],
+                num_training_steps=int(self.num_train_steps * (args.num_epochs)))
+            return [self.optimizer], [{'scheduler': self.scheduler, 'interval': 'step'}]
 
-            return [self.optimizer]
+        return [self.optimizer]
 
 
 if __name__ == '__main__':
