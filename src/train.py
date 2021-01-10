@@ -79,10 +79,10 @@ class Model(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        macro_auc, aucs = self.get_score(outputs)
 
         # log individual aucs if `self.calc_macro_auc == True`
         if self.calc_macro_auc:
+            macro_auc, aucs = self.get_score(outputs)
             for i, (auc, target_col) in enumerate(zip(aucs, target_cols)):
                 self.log(f"auc_{target_col}", auc)
             self.log('macro_auc', macro_auc)
