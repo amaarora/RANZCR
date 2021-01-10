@@ -39,7 +39,13 @@ def setup(args):
 
 class Model(pl.LightningModule):
 
-    def __init__(self, backbone, n_class, pretrained_path=None, num_train_steps=None, target_cols=None):
+    def __init__(self,
+                 backbone,
+                 n_class,
+                 pretrained_path=None,
+                 num_train_steps=None,
+                 target_cols=None,
+                 calc_macro_auc=False):
         super().__init__()
         self.num_train_steps = num_train_steps
         self.backbone = timm.create_model(model_name=backbone,
@@ -50,6 +56,7 @@ class Model(pl.LightningModule):
             logging.info(f"pretrained weights loaded successfully from {pretrained_path}")
         self.loss_fn = nn.BCEWithLogitsLoss()
         self.target_cols = target_cols
+        self.calc_macro_auc = calc_macro_auc
 
     def forward(self, x):
         return self.backbone(x)
@@ -74,13 +81,14 @@ class Model(pl.LightningModule):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         macro_auc, aucs = self.get_score(outputs)
 
-        # log individual aucs
-        for i, (auc, target_col) in enumerate(zip(aucs, target_cols)):
-            self.log(f"auc_{target_col}", auc)
+        # log individual aucs if `self.calc_macro_auc == True`
+        if self.calc_macro_auc:
+            for i, (auc, target_col) in enumerate(zip(aucs, target_cols)):
+                self.log(f"auc_{target_col}", auc)
+            self.log('macro_auc', macro_auc)
+            print(f"Epoch {self.current_epoch} | Macro AUC :{macro_auc}")
 
-        print(f"Epoch {self.current_epoch} | Macro AUC :{macro_auc}")
         self.log('val_epoch_loss', avg_loss)
-        self.log('macro_auc', macro_auc)
 
     def get_score(self, outputs):
         y = torch.cat([x['y'] for x in outputs])
@@ -130,7 +138,8 @@ if __name__ == '__main__':
                   n_class=args.num_class,
                   pretrained_path=args.pretrained_path,
                   num_train_steps=num_train_steps,
-                  target_cols=target_cols)
+                  target_cols=target_cols,
+                  calc_macro_auc=args.calc_macro_auc)
 
     if args.save_checkpoint:
         experiment_path = args.model_dir / args.experiment_name
@@ -138,12 +147,13 @@ if __name__ == '__main__':
         if not os.path.exists(ckpt_save_path):
             Path(ckpt_save_path).mkdir(parents=True, exist_ok=True)
         logging.info(f"Model checkpoint will be saved at {ckpt_save_path}")
+
         ckpt = ModelCheckpoint(dirpath=ckpt_save_path,
-                               monitor='macro_auc',
+                               monitor='macro_auc' if args.calc_macro_auc else 'val_epoch_loss',
                                filename=f'{args.backbone}_fold_{args.fold_id}_{args.img_size}_{args.img_size}' +
-                               '_{epoch:02d}_{macro_auc:.4f}',
+                               '_{epoch:02d}_{val_epoch_loss:.4f}',
                                verbose=True,
-                               mode='max',
+                               mode='max' if args.calc_macro_auc else 'min',
                                period=1,
                                save_top_k=args.save_top_k,
                                save_last=True,

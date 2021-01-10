@@ -17,15 +17,15 @@ args = {
     'fold_id': 0,
 
     # data loader
-    'batch_size': 32,
+    'batch_size': 14,
 
     # training
-    'gpus': [0],
+    'gpus': [0, 1, 2, 3],
     'distributed_strategy': 'ddp',
     'debug': False,
     'num_workers': 8,
     'learning_rate': 1e-3,
-    'gradient_accumulation_steps': 2,
+    'gradient_accumulation_steps': 1,
     'precision': 16,
     'calc_macro_auc': False,
 
@@ -37,14 +37,14 @@ args = {
     'log_artifact': False,
 
     # model
-    'backbone': 'tf_efficientnet_b5',
-    'num_epochs': 20,
+    'backbone': 'tf_efficientnet_b7',
+    'num_epochs': 10,
     'pretrained_path': None,
 
     # scheduler
     'scheduler': {
         "method": "cosine",
-        "warmup_epochs": 3
+        "warmup_epochs": 2
     },
     'monitor_lr': True,
 
@@ -56,8 +56,8 @@ args = {
     'deterministic': True,
 
     # augmentation
-    'img_size': 512,
-    'smallest_side': 576,
+    'img_size': 600,
+    'smallest_side': 640,
     'random_scale': 0.05,
     'rotate': 50,
     'random_brightness': 0.15,

@@ -27,6 +27,7 @@ args = {
     'learning_rate': 1e-3,
     'gradient_accumulation_steps': 1,
     'precision': 16,
+    'calc_macro_auc': False,
 
     # model checkpointing
     'save_checkpoint': True,
